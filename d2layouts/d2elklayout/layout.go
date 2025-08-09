@@ -105,11 +105,21 @@ type ELKGraph struct {
 }
 
 type ConfigurableOpts struct {
-	Algorithm       string `json:"elk.algorithm,omitempty"`
-	NodeSpacing     int    `json:"spacing.nodeNodeBetweenLayers,omitempty"`
-	Padding         string `json:"elk.padding,omitempty"`
-	EdgeNodeSpacing int    `json:"spacing.edgeNodeBetweenLayers,omitempty"`
-	SelfLoopSpacing int    `json:"elk.spacing.nodeSelfLoop"`
+	Algorithm             string `json:"elk.algorithm,omitempty"`
+	NodeSpacing           int    `json:"spacing.nodeNodeBetweenLayers,omitempty"`
+	Padding               string `json:"elk.padding,omitempty"`
+	EdgeNodeSpacing       int    `json:"spacing.edgeNodeBetweenLayers,omitempty"`
+	SelfLoopSpacing       int    `json:"elk.spacing.nodeSelfLoop"`
+	EdgeRouting           string `json:"elk.edgeRouting,omitempty"`
+	SpacingNodeNode       int    `json:"elk.spacing.nodeNode,omitempty"`
+	SpacingEdgeEdge       int    `json:"elk.spacing.edgeEdge,omitempty"`
+	EdgeEdgeBetweenLayers int    `json:"elk.layered.spacing.edgeEdgeBetweenLayers,omitempty"`
+	NodePlacementStrategy string `json:"elk.layered.nodePlacement.strategy,omitempty"`
+	BkFixedAlignment      string `json:"elk.layered.nodePlacement.bk.fixedAlignment,omitempty"`
+	EdgeLabelSpacing      string `json:"elk.edgeLabel.spacing,omitempty"`
+	NodeLabelsPlacement   string `json:"elk.nodeLabels.placement,omitempty"`
+	EdgeRoutingNudging    bool   `json:"elk.edgeRouting.nudging,omitempty"`
+	PortConstraints       string `json:"elk.portConstraints,omitempty"`
 }
 
 var DefaultOpts = ConfigurableOpts{
@@ -126,8 +136,8 @@ var edge_node_spacing = 40
 type elkOpts struct {
 	EdgeNode                     int       `json:"elk.spacing.edgeNode,omitempty"`
 	FixedAlignment               string    `json:"elk.layered.nodePlacement.bk.fixedAlignment,omitempty"`
-	Thoroughness                 int       `json:"elk.layered.thoroughness,omitempty"`
 	EdgeEdgeBetweenLayersSpacing int       `json:"elk.layered.spacing.edgeEdgeBetweenLayers,omitempty"`
+	Thoroughness                 int       `json:"elk.layered.thoroughness,omitempty"`
 	Direction                    Direction `json:"elk.direction"`
 	HierarchyHandling            string    `json:"elk.hierarchyHandling,omitempty"`
 	InlineEdgeLabels             bool      `json:"elk.edgeLabels.inline,omitempty"`
@@ -141,8 +151,7 @@ type elkOpts struct {
 	ContentAlignment    string `json:"elk.contentAlignment,omitempty"`
 	NodeSizeMinimum     string `json:"elk.nodeSize.minimum,omitempty"`
 
-	PortSide        PortSide `json:"elk.port.side,omitempty"`
-	PortConstraints string   `json:"elk.portConstraints,omitempty"`
+	PortSide PortSide `json:"elk.port.side,omitempty"`
 
 	ConfigurableOpts
 }
@@ -178,22 +187,34 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 	elkGraph := &ELKGraph{
 		ID: "",
 		LayoutOptions: &elkOpts{
-			Thoroughness:                 8,
-			EdgeEdgeBetweenLayersSpacing: 50,
-			EdgeNode:                     edge_node_spacing,
-			HierarchyHandling:            "INCLUDE_CHILDREN",
-			FixedAlignment:               "BALANCED",
-			ConsiderModelOrder:           "NODES_AND_EDGES",
-			CycleBreakingStrategy:        "GREEDY_MODEL_ORDER",
-			NodeSizeConstraints:          "MINIMUM_SIZE",
-			ContentAlignment:             "H_CENTER V_CENTER",
-			ConfigurableOpts: ConfigurableOpts{
-				Algorithm:       opts.Algorithm,
-				NodeSpacing:     opts.NodeSpacing,
-				EdgeNodeSpacing: opts.EdgeNodeSpacing,
-				SelfLoopSpacing: opts.SelfLoopSpacing,
-			},
+			Thoroughness:          8,
+			EdgeNode:              edge_node_spacing,
+			HierarchyHandling:     "INCLUDE_CHILDREN",
+			ConsiderModelOrder:    "NODES_AND_EDGES",
+			CycleBreakingStrategy: "GREEDY_MODEL_ORDER",
+			NodeSizeConstraints:   "MINIMUM_SIZE",
+			ContentAlignment:      "H_CENTER V_CENTER",
+			ConfigurableOpts: func() ConfigurableOpts {
+				c := *opts
+				if c.EdgeEdgeBetweenLayers == 0 {
+					c.EdgeEdgeBetweenLayers = 50
+				}
+				if c.BkFixedAlignment == "" {
+					c.BkFixedAlignment = "BALANCED"
+				}
+				return c
+			}(),
 		},
+	}
+	// Apply CLI-configurable overrides for top-level options
+	if opts.PortConstraints != "" {
+		elkGraph.LayoutOptions.ConfigurableOpts.PortConstraints = opts.PortConstraints
+	}
+	if opts.BkFixedAlignment != "" {
+		elkGraph.LayoutOptions.FixedAlignment = opts.BkFixedAlignment
+	}
+	if opts.EdgeEdgeBetweenLayers != 0 {
+		elkGraph.LayoutOptions.EdgeEdgeBetweenLayersSpacing = opts.EdgeEdgeBetweenLayers
 	}
 	if elkGraph.LayoutOptions.ConfigurableOpts.SelfLoopSpacing == DefaultOpts.SelfLoopSpacing {
 		// +5 for a tiny bit of padding
@@ -274,16 +295,14 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 
 		if len(obj.ChildrenArray) > 0 {
 			n.LayoutOptions = &elkOpts{
-				ForceNodeModelOrder:          true,
-				Thoroughness:                 8,
-				EdgeEdgeBetweenLayersSpacing: 50,
-				HierarchyHandling:            "INCLUDE_CHILDREN",
-				FixedAlignment:               "BALANCED",
-				EdgeNode:                     edge_node_spacing,
-				ConsiderModelOrder:           "NODES_AND_EDGES",
-				CycleBreakingStrategy:        "GREEDY_MODEL_ORDER",
-				NodeSizeConstraints:          "MINIMUM_SIZE",
-				ContentAlignment:             "H_CENTER V_CENTER",
+				ForceNodeModelOrder:   true,
+				Thoroughness:          8,
+				HierarchyHandling:     "INCLUDE_CHILDREN",
+				EdgeNode:              edge_node_spacing,
+				ConsiderModelOrder:    "NODES_AND_EDGES",
+				CycleBreakingStrategy: "GREEDY_MODEL_ORDER",
+				NodeSizeConstraints:   "MINIMUM_SIZE",
+				ContentAlignment:      "H_CENTER V_CENTER",
 				ConfigurableOpts: ConfigurableOpts{
 					NodeSpacing:     opts.NodeSpacing,
 					EdgeNodeSpacing: opts.EdgeNodeSpacing,
@@ -328,7 +347,7 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 		}
 
 		if obj.SQLTable != nil {
-			n.LayoutOptions.PortConstraints = "FIXED_POS"
+			n.LayoutOptions.ConfigurableOpts.PortConstraints = "FIXED_POS"
 			columns := obj.SQLTable.Columns
 			colHeight := n.Height / float64(len(columns)+1)
 			n.Ports = make([]*ELKPort, 0, len(columns)*2)

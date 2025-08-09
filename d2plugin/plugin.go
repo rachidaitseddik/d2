@@ -62,6 +62,12 @@ func (f *PluginSpecificFlag) AddToOpts(opts *xmain.Opts) {
 			}
 		}
 		opts.Int64Slice("", f.Name, "", slice, f.Usage)
+	case "bool":
+		var b bool
+		if v, ok := f.Default.(bool); ok {
+			b = v
+		}
+		opts.Bool("", f.Name, "", b, f.Usage)
 	}
 }
 
@@ -207,6 +213,9 @@ func HydratePluginOpts(ctx context.Context, ms *xmain.State, plugin Plugin) erro
 			opts[f.Tag] = val
 		case "[]int64":
 			val, _ := ms.Opts.Flags.GetInt64Slice(f.Name)
+			opts[f.Tag] = val
+		case "bool":
+			val, _ := ms.Opts.Flags.GetBool(f.Name)
 			opts[f.Tag] = val
 		}
 	}
