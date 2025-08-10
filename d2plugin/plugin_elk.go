@@ -43,7 +43,7 @@ func (p elkPlugin) Flags(context.Context) ([]PluginSpecificFlag, error) {
 			Type:    "int64",
 			Default: int64(d2elklayout.DefaultOpts.NodeSpacing),
 			Usage:   "spacing between nodes of adjacent layers",
-			Tag:     "spacing.nodeNodeBetweenLayers",
+			Tag:     "elk.layered.spacing.nodeNodeBetweenLayers",
 		},
 		{
 			Name:    "elk-spacing-nodeNode",
@@ -57,14 +57,14 @@ func (p elkPlugin) Flags(context.Context) ([]PluginSpecificFlag, error) {
 			Type:    "int64",
 			Default: int64(d2elklayout.DefaultOpts.NodeSpacing),
 			Usage:   "layered: spacing between nodes of adjacent layers",
-			Tag:     "spacing.nodeNodeBetweenLayers",
+			Tag:     "elk.layered.spacing.nodeNodeBetweenLayers",
 		},
 		{
 			Name:    "elk-layered-spacing-edgeNodeBetweenLayers",
 			Type:    "int64",
 			Default: int64(d2elklayout.DefaultOpts.EdgeNodeSpacing),
 			Usage:   "layered: spacing between edges and nodes of adjacent layers",
-			Tag:     "spacing.edgeNodeBetweenLayers",
+			Tag:     "elk.layered.spacing.edgeNodeBetweenLayers",
 		},
 		{
 			Name:    "elk-spacing-edgeEdge",
@@ -134,7 +134,7 @@ func (p elkPlugin) Flags(context.Context) ([]PluginSpecificFlag, error) {
 			Type:    "int64",
 			Default: int64(d2elklayout.DefaultOpts.EdgeNodeSpacing),
 			Usage:   "spacing between nodes and edges routed next to the node’s layer",
-			Tag:     "spacing.edgeNodeBetweenLayers",
+			Tag:     "elk.layered.spacing.edgeNodeBetweenLayers",
 		},
 		{
 			Name:    "elk-nodeSelfLoop",

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -106,9 +107,9 @@ type ELKGraph struct {
 
 type ConfigurableOpts struct {
 	Algorithm             string `json:"elk.algorithm,omitempty"`
-	NodeSpacing           int    `json:"spacing.nodeNodeBetweenLayers,omitempty"`
+	NodeSpacing           int    `json:"elk.layered.spacing.nodeNodeBetweenLayers,omitempty"`
 	Padding               string `json:"elk.padding,omitempty"`
-	EdgeNodeSpacing       int    `json:"spacing.edgeNodeBetweenLayers,omitempty"`
+	EdgeNodeSpacing       int    `json:"elk.layered.spacing.edgeNodeBetweenLayers,omitempty"`
 	SelfLoopSpacing       int    `json:"elk.spacing.nodeSelfLoop"`
 	EdgeRouting           string `json:"elk.edgeRouting,omitempty"`
 	SpacingNodeNode       int    `json:"elk.spacing.nodeNode,omitempty"`
@@ -456,6 +457,11 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 		}
 	}
 
+	if os.Getenv("D2_DEBUG_ELK_OPTS") == "1" {
+		if b, err2 := json.MarshalIndent(elkGraph.LayoutOptions, "", "  "); err2 == nil {
+			fmt.Printf("[D2][ELK] layoutOptions:\n%s\n", string(b))
+		}
+	}
 	raw, err := json.Marshal(elkGraph)
 	if err != nil {
 		return err

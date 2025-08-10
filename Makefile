@@ -24,3 +24,9 @@ race: fmt
 .PHONY: js
 js: gen
 	cd d2js/js && NPM_VERSION="${NPM_VERSION}" prefix "$@" ./make.sh all
+
+.PHONY: install
+install: fmt
+		prefix "$@" mkdir -p "$$HOME/bin"
+		prefix "$@" go build -trimpath -o "$$HOME/bin/d2" .
+		prefix "$@" chmod 755 "$$HOME/bin/d2"
