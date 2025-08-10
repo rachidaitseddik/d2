@@ -157,6 +157,23 @@ type elkOpts struct {
 	ConfigurableOpts
 }
 
+func writeELKDebug(logPath, label string, data []byte) {
+	if logPath == "" {
+		return
+	}
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[D2][ELK] failed to open log file %s: %v\n", logPath, err)
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "===== %s =====\n", label)
+	_, _ = f.Write(data)
+	if len(data) == 0 || data[len(data)-1] != '\n' {
+		_, _ = f.WriteString("\n")
+	}
+}
+
 func DefaultLayout(ctx context.Context, g *d2graph.Graph) (err error) {
 	return Layout(ctx, g, nil)
 }
@@ -167,6 +184,8 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 	}
 	defer xdefer.Errorf(&err, "failed to ELK layout")
 
+	logPath := os.Getenv("D2_ELK_LOG_FILE")
+
 	runner := jsrunner.NewJSRunner()
 
 	// Load ELK for both Goja and WASM engines
@@ -175,6 +194,9 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 		if err := runner.Set("console", console); err != nil {
 			return err
 		}
+	}
+	if logPath != "" {
+		_, _ = runner.RunString(`(function(){try{var g=(typeof globalThis!=='undefined')?globalThis:(typeof window!=='undefined')?window:(typeof global!=='undefined')?global:this;g.__d2_elk_logs=[];g.__d2_elk_errors=[];var origLog=console&&console.log;var origErr=console&&console.error;console.log=function(){try{g.__d2_elk_logs.push(Array.prototype.slice.call(arguments).join(" "))}catch(e){} if(origLog){return origLog.apply(console, arguments)}};console.error=function(){try{g.__d2_elk_errors.push(Array.prototype.slice.call(arguments).join(" "))}catch(e){} if(origErr){return origErr.apply(console, arguments)}};}catch(e){}})();`)
 	}
 
 	// Load ELK JS for both engines
@@ -304,12 +326,12 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 				CycleBreakingStrategy: "GREEDY_MODEL_ORDER",
 				NodeSizeConstraints:   "MINIMUM_SIZE",
 				ContentAlignment:      "H_CENTER V_CENTER",
-				ConfigurableOpts: ConfigurableOpts{
-					NodeSpacing:     opts.NodeSpacing,
-					EdgeNodeSpacing: opts.EdgeNodeSpacing,
-					SelfLoopSpacing: opts.SelfLoopSpacing,
-					Padding:         opts.Padding,
-				},
+				ConfigurableOpts: func() ConfigurableOpts {
+					// Inherit ALL CLI-configured options (including elk.edgeRouting, elk.algorithm, spacings, etc.)
+					// so that nested parent containers also receive the same routing mode and related options.
+					c := *opts
+					return c
+				}(),
 			}
 			if n.LayoutOptions.ConfigurableOpts.SelfLoopSpacing == DefaultOpts.SelfLoopSpacing {
 				n.LayoutOptions.ConfigurableOpts.SelfLoopSpacing = go2.Max(n.LayoutOptions.ConfigurableOpts.SelfLoopSpacing, childrenMaxSelfLoop(obj, g.Root.Direction.Value == "down" || g.Root.Direction.Value == "" || g.Root.Direction.Value == "up")/2+5)
@@ -462,9 +484,22 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 			fmt.Printf("[D2][ELK] layoutOptions:\n%s\n", string(b))
 		}
 	}
+	if logPath != "" {
+		if b, err2 := json.MarshalIndent(elkGraph.LayoutOptions, "", "  "); err2 == nil {
+			writeELKDebug(logPath, "ELK LAYOUT OPTIONS", b)
+		}
+	}
 	raw, err := json.Marshal(elkGraph)
 	if err != nil {
 		return err
+	}
+	if os.Getenv("D2_DEBUG_ELK_GRAPH") == "1" {
+		fmt.Printf("[D2][ELK] command: elkLayoutSync(graph)\n")
+		fmt.Printf("[D2][ELK] input graph:\n%s\n", string(raw))
+	}
+	if logPath != "" {
+		writeELKDebug(logPath, "ELK COMMAND", []byte("elkLayoutSync(graph)"))
+		writeELKDebug(logPath, "ELK INPUT GRAPH", raw)
 	}
 
 	loadScript := fmt.Sprintf(`var graph = %s`, raw)
@@ -488,6 +523,19 @@ func Layout(ctx context.Context, g *d2graph.Graph, opts *ConfigurableOpts) (err 
 		resultStr, err := runner.RunString(`JSON.stringify(graph)`)
 		if err != nil {
 			return err
+		}
+
+		if os.Getenv("D2_DEBUG_ELK_GRAPH") == "1" {
+			fmt.Printf("[D2][ELK] output graph:\n%s\n", resultStr.String())
+		}
+		if logPath != "" {
+			writeELKDebug(logPath, "ELK OUTPUT GRAPH", []byte(resultStr.String()))
+			if lv, err2 := runner.RunString(`(typeof __d2_elk_logs !== 'undefined' ? JSON.stringify(__d2_elk_logs) : "[]")`); err2 == nil {
+				writeELKDebug(logPath, "ELK CONSOLE LOG", []byte(lv.String()))
+			}
+			if ev, err2 := runner.RunString(`(typeof __d2_elk_errors !== 'undefined' ? JSON.stringify(__d2_elk_errors) : "[]")`); err2 == nil {
+				writeELKDebug(logPath, "ELK CONSOLE ERROR", []byte(ev.String()))
+			}
 		}
 
 		if err := json.Unmarshal([]byte(resultStr.String()), &jsonOut); err != nil {
